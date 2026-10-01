@@ -856,6 +856,19 @@ function CLIENT() {
   if (!st || !Array.isArray(st.places)) st = { places: [window.__DEF], active: "gps", lastGps: null };
   window.__STATE = st;
   window.__Q = [];
+  var chiedi = false;
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest && e.target.closest("[data-act]");
+    if (!el) return;
+    var a = el.getAttribute("data-act");
+    if (a === "gps" || a === "sel:gps") chiedi = true;
+  }, true);
+  function permessoOk() {
+    try {
+      return navigator.permissions.query({ name: "geolocation" })
+        .then(function (r) { return r.state === "granted"; }, function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  }
   // stessa "coda" usata dallo script Scriptable
   setInterval(function () {
     salva(KS, window.__STATE);
@@ -863,7 +876,15 @@ function CLIENT() {
     q.forEach(function (it) {
       if (it.open) window.location.href = it.open;
       if (it.cache && window.__DATA) salva(KC, window.__DATA);
-      if (it.gps) posizione().then(function (g) { if (window.__gps) window.__gps(g); });
+      if (it.gps) {
+        // chiede il GPS solo se l'hai chiesto tu (freccia o "Posizione attuale"),
+        // se il permesso è già concesso, o se non c'è nessuna posizione salvata
+        var forza = chiedi || !(window.__STATE && window.__STATE.lastGps);
+        chiedi = false;
+        permessoOk().then(function (ok) {
+          if (forza || ok) posizione().then(function (g) { if (window.__gps) window.__gps(g); });
+        });
+      }
     });
   }, 400);
 
